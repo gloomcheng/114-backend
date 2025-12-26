@@ -329,6 +329,46 @@ git push --force origin main
 
 ## Python / FastAPI 相關問題
 
+### 問題：Windows PowerShell 無法啟動虛擬環境
+
+**錯誤訊息：**
+```
+.venv\Scripts\Activate.ps1 cannot be loaded because running scripts is disabled on this system.
+```
+
+**原因：**
+Windows PowerShell 預設的執行原則 (Execution Policy) 會禁止執行腳本。
+
+**解法：**
+
+```powershell
+# 方法 1：暫時允許執行（只對當前 PowerShell 視窗有效）
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
+
+# 然後就可以啟動虛擬環境
+.venv\Scripts\Activate.ps1
+```
+
+```powershell
+# 方法 2：永久允許當前使用者執行腳本（推薦）
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+
+# 之後每次都可以直接啟動
+.venv\Scripts\Activate.ps1
+```
+
+```cmd
+# 方法 3：改用 CMD（命令提示字元）而不是 PowerShell
+.venv\Scripts\activate.bat
+```
+
+**補充說明：**
+- `RemoteSigned`：允許執行本地腳本，但從網路下載的腳本需要簽名
+- `Scope Process`：只影響當前視窗，關閉後失效
+- `Scope CurrentUser`：永久設定，只影響當前使用者
+
+---
+
 ### 問題：ModuleNotFoundError: No module named 'xxx'
 
 **解法：**
