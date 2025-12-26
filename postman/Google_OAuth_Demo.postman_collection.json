@@ -1,0 +1,269 @@
+{
+	"info": {
+		"_postman_id": "114-backend-oauth-demo",
+		"name": "114-Backend Google OAuth Demo",
+		"description": "# Google OAuth 教學範例\n\n這個 Collection 包含兩種 OAuth 架構的實作：\n\n## 架構 A: Authorization Code Flow\n- 前端只傳 `code`，後端用 `code + client_secret` 換 token\n- **較安全**，因為 `client_secret` 永遠不會暴露在前端\n- 適合有後端的網站\n\n## 架構 B: Google Sign-In SDK Flow\n- 前端用 Google SDK 直接拿到 `id_token`\n- **較簡單**，不需要後端處理換 token 的邏輯\n- 適合純前端應用或快速開發\n\n---\n\n## 測試步驟\n\n### 使用 OAuth Playground 取得 tokens\n1. 開啟 [Google OAuth Playground](https://developers.google.com/oauthplayground)\n2. 點右上角齒輪 ⚙️，勾選「Use your own OAuth credentials」\n3. 填入 Client ID 和 Client Secret\n4. 左側 Input your own scopes 輸入：`openid email profile`\n5. 點「Authorize APIs」→ 登入 Google\n6. **架構 A**：在 Step 2 之前，從 URL 複製 `code` 參數\n7. **架構 B**：點「Exchange authorization code for tokens」，複製 `id_token`",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "0. 測試伺服器連線",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/",
+					"host": ["{{base_url}}"],
+					"path": [""]
+				},
+				"description": "測試伺服器是否正常運作。"
+			},
+			"response": []
+		},
+		{
+			"name": "架構 A - Authorization Code Flow",
+			"description": "## 架構 A: Authorization Code Flow\n\n```\n前端 → 導向 Google → 拿到 code → 傳給後端\n後端 → 用 code + secret 換 tokens → 驗證 → 發 JWT\n```\n\n### 安全性\n- ✅ client_secret 只存在後端\n- ✅ 前端永遠不知道 secret\n- ✅ 較安全的做法",
+			"item": [
+				{
+					"name": "1A. 用 Code 換取 JWT",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set(\"access_token\", jsonData.access_token);",
+									"    console.log(\"✅ access_token 已自動儲存！\");",
+									"    console.log(\"使用者：\" + jsonData.user.email);",
+									"}",
+									"",
+									"pm.test(\"登入成功，回傳 access_token\", function () {",
+									"    pm.response.to.have.status(200);",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('access_token');",
+									"    pm.expect(jsonData).to.have.property('user');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"code\": \"{{google_auth_code}}\",\n    \"redirect_uri\": \"https://developers.google.com/oauthplayground\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/google/code",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "google", "code"]
+						},
+						"description": "## [架構 A] 用 Authorization Code 換取 JWT\n\n### 如何取得 code？\n1. 在 OAuth Playground 完成 Step 1 (Authorize APIs) 後\n2. 看瀏覽器網址列，會有 `?code=4/0ATx...` 的參數\n3. 複製 `code` 的值（需要 URL decode）\n\n### 請求格式\n```json\n{\n    \"code\": \"4/0ATx87lO...\",\n    \"redirect_uri\": \"https://developers.google.com/oauthplayground\"\n}\n```\n\n### 後端做了什麼？\n1. 收到 code\n2. 用 code + client_secret 向 Google 換 tokens\n3. 驗證 id_token\n4. 發放自家 JWT\n\n⚠️ **注意**：code 只能使用一次，且幾分鐘內會過期！"
+					},
+					"response": [
+						{
+							"name": "登入成功",
+							"status": "OK",
+							"code": 200,
+							"body": "{\n    \"access_token\": \"eyJhbGciOiJIUzI1NiIs...\",\n    \"token_type\": \"bearer\",\n    \"user\": {\n        \"name\": \"Test User\",\n        \"email\": \"test@gmail.com\",\n        \"picture\": \"https://...\"\n    },\n    \"google_access_token\": \"ya29.a0AfB_by...\"\n}"
+						},
+						{
+							"name": "Code 無效或已過期",
+							"status": "Unauthorized",
+							"code": 401,
+							"body": "{\n    \"detail\": \"無法換取 Token: invalid_grant\"\n}"
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "架構 B - Google Sign-In SDK Flow",
+			"description": "## 架構 B: Google Sign-In SDK Flow\n\n```\n前端 → 用 Google SDK 登入 → 直接拿到 id_token → 傳給後端\n後端 → 驗證 id_token → 發 JWT\n```\n\n### 特點\n- ✅ 實作簡單，前端用 SDK 就好\n- ✅ 不需要處理 code 交換邏輯\n- ⚠️ 只能拿到 id_token，無法呼叫 Google API",
+			"item": [
+				{
+					"name": "1B. 用 ID Token 換取 JWT",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set(\"access_token\", jsonData.access_token);",
+									"    console.log(\"✅ access_token 已自動儲存！\");",
+									"    console.log(\"使用者：\" + jsonData.user.email);",
+									"}",
+									"",
+									"pm.test(\"登入成功，回傳 access_token\", function () {",
+									"    pm.response.to.have.status(200);",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('access_token');",
+									"    pm.expect(jsonData).to.have.property('user');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"id_token\": \"{{google_id_token}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/google",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "google"]
+						},
+						"description": "## [架構 B] 用 Google ID Token 換取 JWT\n\n### 如何取得 id_token？\n1. 在 OAuth Playground 完成 Step 1 & 2\n2. 複製回應中的 `id_token`\n\n### 請求格式\n```json\n{\n    \"id_token\": \"eyJhbGciOiJSUzI1NiIs...\"\n}\n```\n\n### 後端做了什麼？\n1. 收到 id_token\n2. 向 Google 驗證 id_token 是否合法\n3. 發放自家 JWT\n\n💡 這種方式不需要 client_secret，因為沒有「換 token」這一步"
+					},
+					"response": [
+						{
+							"name": "登入成功",
+							"status": "OK",
+							"code": 200,
+							"body": "{\n    \"access_token\": \"eyJhbGciOiJIUzI1NiIs...\",\n    \"token_type\": \"bearer\",\n    \"user\": {\n        \"name\": \"Test User\",\n        \"email\": \"test@gmail.com\",\n        \"picture\": \"https://...\"\n    }\n}"
+						},
+						{
+							"name": "Token 無效",
+							"status": "Unauthorized",
+							"code": 401,
+							"body": "{\n    \"detail\": \"無效的 Google Token\"\n}"
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "2. 取得當前使用者（需 JWT）",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"成功取得使用者資訊\", function () {",
+							"    pm.response.to.have.status(200);",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData).to.have.property('user_email');",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "{{access_token}}",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/users/me",
+					"host": ["{{base_url}}"],
+					"path": ["users", "me"]
+				},
+				"description": "## 受保護的路由\n\n不論使用架構 A 或 B 登入，拿到的 JWT 都可以用來存取這個路由。\n\n### Header\n```\nAuthorization: Bearer <jwt_token>\n```"
+			},
+			"response": []
+		},
+		{
+			"name": "3. 查看 API 文件",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/docs",
+					"host": ["{{base_url}}"],
+					"path": ["docs"]
+				},
+				"description": "開啟 FastAPI Swagger UI\n\n💡 建議直接在瀏覽器開啟：http://localhost:8000/docs"
+			},
+			"response": []
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [""]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"pm.test(\"回應時間小於 2 秒\", function () {",
+					"    pm.expect(pm.response.responseTime).to.be.below(2000);",
+					"});"
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8000",
+			"type": "string"
+		},
+		{
+			"key": "google_auth_code",
+			"value": "在這裡貼上從 OAuth Playground URL 取得的 code",
+			"type": "string"
+		},
+		{
+			"key": "google_id_token",
+			"value": "在這裡貼上從 OAuth Playground 取得的 id_token",
+			"type": "string"
+		},
+		{
+			"key": "access_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "google_client_id",
+			"value": "YOUR_GOOGLE_CLIENT_ID",
+			"type": "string"
+		},
+		{
+			"key": "google_client_secret",
+			"value": "YOUR_GOOGLE_CLIENT_SECRET",
+			"type": "string"
+		}
+	]
+}
