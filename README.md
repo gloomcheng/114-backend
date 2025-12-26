@@ -29,10 +29,10 @@ cp .env.example .env
 # 編輯 .env 填入實際的值
 
 # 4. 啟動伺服器
-uvicorn main:app --reload
+fastapi dev main.py
 
-# 5. 開啟 API 文件
-open http://localhost:8000/docs
+# 5. 開啟 API 文件（fastapi dev 會自動顯示網址）
+# http://localhost:8000/docs
 ```
 
 ---
