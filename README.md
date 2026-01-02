@@ -585,6 +585,158 @@ AI：（完成兩個 commit，清楚區分兩種實作）
 
 ---
 
+# Docker 容器化 / Docker Containerization
+
+## 為什麼要學 Docker？ / Why Learn Docker?
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│         🐳 Docker 解決的問題 / Problems Docker Solves        │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│   「在我電腦上可以跑啊！」                                    │
+│   "It works on my machine!"                                 │
+│                                                             │
+│   這句話你一定聽過。問題在於：                               │
+│   You've heard this before. The problems are:              │
+│   - Windows / Mac / Linux 環境不同                          │
+│     Different OS environments                               │
+│   - Python 版本不同 / Different Python versions             │
+│   - 套件版本不同 / Different package versions               │
+│                                                             │
+│   Docker 的解法：把「環境」也打包進去！                      │
+│   Docker's solution: Package the environment too!          │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## 快速開始 / Quick Start
+
+```bash
+# 1. 建立 Docker Image / Build Docker Image
+docker build -t my-fastapi-app .
+
+# 2. 啟動 Container / Start Container
+docker run -p 8000:8000 my-fastapi-app
+
+# 3. 打開瀏覽器 / Open browser
+open http://localhost:8000/docs
+```
+
+## Dockerfile 解析 / Dockerfile Explained
+
+```dockerfile
+# 基底環境 / Base environment: Python 3.12 lightweight Linux
+FROM python:3.12-slim
+
+# 設定工作目錄 / Set working directory
+WORKDIR /app
+
+# 先複製 requirements.txt 並安裝（利用快取加速）
+# Copy requirements.txt first and install (leverages cache)
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# 複製程式碼 / Copy code
+COPY . .
+
+# 標示使用的 port / Declare port
+EXPOSE 8000
+
+# 容器啟動時執行的指令 / Command to run when container starts
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+```
+
+### 常見問題 / FAQ
+
+| 問題 Problem | 解法 Solution |
+|------|------|
+| `docker: command not found` | 請先安裝 Install [Docker Desktop](https://www.docker.com/products/docker-desktop/) |
+| build 很慢 Slow build | 確認 `.dockerignore` 有排除 `.venv/` Check `.dockerignore` excludes `.venv/` |
+| 容器內無法連網 No network | 檢查防火牆設定 Check firewall settings |
+
+---
+
+# GitHub Actions 自動化 / GitHub Actions Automation
+
+## 什麼是 GitHub Actions？ / What is GitHub Actions?
+
+你可以把它想成：
+Think of it as:
+
+> 「GitHub 送你一台免費的臨時電腦，每次你 push 程式碼，它就自動幫你跑測試、build、部署」
+> "GitHub gives you a free temporary computer that automatically runs tests, builds, and deploys every time you push code"
+
+## 工作流程說明 / Workflow Overview
+
+我們的 `.github/workflows/deploy.yml` 定義了三個階段：
+Our `.github/workflows/deploy.yml` defines three stages:
+
+```
+┌─────────────┐      ┌─────────────┐      ┌─────────────┐
+│   🧪 Test    │ ──▶ │  🐳 Build   │ ──▶ │  🚀 Deploy  │
+└─────────────┘      └─────────────┘      └─────────────┘
+     │                     │                    │
+     ▼                     ▼                    ▼
+  檢查程式碼           建立 Docker          觸發 Render
+  Check code          Build/test           Trigger Render
+  imports             Docker image         redeploy
+```
+
+## 如何查看執行結果？ / How to View Results?
+
+1. 到你的 GitHub Repository / Go to your GitHub Repository
+2. 點擊上方的 **Actions** 頁籤 / Click the **Actions** tab
+3. 可以看到每次 push 的執行狀態（✅ 成功 / ❌ 失敗）
+   See execution status for each push (✅ success / ❌ failure)
+4. 點進去可以看每個 step 的詳細 log
+   Click in to see detailed logs for each step
+
+## 練習：故意讓 CI 失敗 / Exercise: Intentionally Fail CI
+
+```python
+# 在 main.py 加入語法錯誤 / Add syntax error to main.py
+def broken_function(
+    # 缺少右括號！ / Missing closing parenthesis!
+```
+
+Push 後觀察 GitHub Actions 頁面，你會看到 Test job 失敗。
+After pushing, observe the GitHub Actions page - Test job will fail.
+
+---
+
+# 部署到 Render / Deploy to Render
+
+## 為什麼選擇 Render？ / Why Choose Render?
+
+| 平台 Platform | 難度 Difficulty | 免費額度 Free Tier | 適合 Best For |
+|------|------|---------|---------|
+| **Render** | ⭐ 簡單 Easy | 750 hrs/month | 教學 Learning, Side Project |
+| Railway | ⭐ 簡單 Easy | $5/month | 教學 Learning, Side Project |
+| AWS/GCP | ⭐⭐⭐ 困難 Hard | Complex | 正式產品 Production |
+
+Render 支援「連結 GitHub → 自動偵測 Dockerfile → 自動部署」，非常適合教學。
+Render supports "Connect GitHub → Auto-detect Dockerfile → Auto-deploy", perfect for learning.
+
+## 部署步驟 / Deployment Steps
+
+> 📖 詳細步驟請參考 For detailed steps, see [docs/RENDER_SETUP.md](./docs/RENDER_SETUP.md)
+
+### 快速摘要 / Quick Summary
+
+1. **建立帳號 Create Account** - 到 [render.com](https://render.com) 用 GitHub 登入
+   Go to render.com and log in with GitHub
+2. **建立服務 Create Service** - New → Web Service → 連結 repo / Connect repo
+3. **設定 Configure** - Runtime: Docker, Instance: Free
+4. **環境變數 Environment Variables** - 加入 `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `JWT_SECRET_KEY`
+5. **Deploy Hook** - 複製 URL 存到 GitHub Secrets / Copy URL to GitHub Secrets
+
+### 完成！ Done!
+
+你的 API 網址 Your API URL：`https://你的服務名稱.onrender.com`
+
+---
+
 ## 測試方式
 
 請參考 [postman/README.md](./postman/README.md) 的說明。
